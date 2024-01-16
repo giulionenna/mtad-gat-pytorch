@@ -479,6 +479,48 @@ class Plotter:
         fig.legend(prop={"size": 20})
         plt.show()
 
+    def plot_global_predictions_iveco(self, type="test", pca = False, pca_n_features = 3, plot_chassis = False, chassis = None):
+        if type == "test":
+            data_copy = self.test_output.copy()
+        else:
+            data_copy = self.train_output.copy()
+
+        fig, axs = plt.subplots(
+            3+ pca*pca_n_features,
+            figsize=(30 , 10 + pca*pca_n_features*10),
+            sharex=True,
+        )
+        axs[0].plot(data_copy[f"A_Score_Global"], c="r", label="anomaly scores")
+        axs[0].plot(data_copy["Thresh_Global"], linestyle="dashed", c="black", label="threshold")
+        axs[1].plot(data_copy["A_Pred_Global"], label="predicted anomalies", c="orange")
+        if self.labels_available and type == "test":
+            axs[2].plot(
+                data_copy["A_True_Global"],
+                label="actual anomalies",
+            )
+        axs[0].set_ylim([0, 5 * np.mean(data_copy["Thresh_Global"].values)])
+        if pca:
+
+            anomaly_columns = [c for c in data_copy.columns if c.startswith('A_Score')]
+            anomalies = data_copy[anomaly_columns]
+
+            scaler = StandardScaler()
+            scaled_anomalies = scaler.fit_transform(anomalies)
+
+            pca = PCA(pca_n_features)
+            pca_anomalies = pca.fit_transform(scaled_anomalies)
+
+            columns = [f'PC{i+1}' for i in range(pca_n_features)]
+            df_pca = pd.DataFrame(data=pca_anomalies, columns=columns)
+
+            for i in range(pca_n_features):
+                axs[2+i].plot(df_pca[f'PC{i+1}'], c = 'g', label = f'PC{i+1}')
+                ma = df_pca[f'PC{i+1}'].rolling(window=10).mean()
+                axs[2+i].plot(ma, c='b', label = 'moving average' )
+        
+        fig.legend(prop={"size": 20})
+        plt.show()
+
     def plotly_global_predictions(self, type="test"):
         is_test = True
         if type == "train":
