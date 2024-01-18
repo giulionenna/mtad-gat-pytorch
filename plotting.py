@@ -11,6 +11,7 @@ from plotly.subplots import make_subplots
 import cufflinks as cf
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import MinMaxScaler
 cf.go_offline()
 
 
@@ -471,10 +472,18 @@ class Plotter:
             columns = [f'PC{i+1}' for i in range(pca_n_features)]
             df_pca = pd.DataFrame(data=pca_anomalies, columns=columns)
 
+
             for i in range(pca_n_features):
+                pc_loadings_index  = np.argsort(np.abs(pca.components_[i,:]))[::-1][0:5] #takes the index of the 5 highest module loadings
+                pc_loadings = pca.components_[i, pc_loadings_index]
                 axs[2+i].plot(df_pca[f'PC{i+1}'], c = 'g', label = f'PC{i+1}')
-                ma = df_pca[f'PC{i+1}'].rolling(window=10).mean()
+                ma = df_pca[f'PC{i+1}'].rolling(window=30).mean()
                 axs[2+i].plot(ma, c='b', label = 'moving average' )
+                title = ''
+                for pc in range(len(pc_loadings_index)):
+                    title += f'PC_{pc_loadings_index[pc]}={round(pc_loadings[pc],3)} '
+                axs[2+i].set_title(title, fontsize = 12)
+
         
         fig.legend(prop={"size": 20})
         plt.show()
@@ -505,6 +514,7 @@ class Plotter:
             anomalies = data_copy[anomaly_columns]
 
             scaler = StandardScaler()
+            mm_scaler = MinMaxScaler()
             scaled_anomalies = scaler.fit_transform(anomalies)
 
             pca = PCA(pca_n_features)
@@ -514,11 +524,24 @@ class Plotter:
             df_pca = pd.DataFrame(data=pca_anomalies, columns=columns)
 
             for i in range(pca_n_features):
-                axs[2+i].plot(df_pca[f'PC{i+1}'], c = 'g', label = f'PC{i+1}')
-                ma = df_pca[f'PC{i+1}'].rolling(window=10).mean()
+                pc_loadings_index  = np.argsort(np.abs(pca.components_[i,:]))[::-1][0:5] #takes the index of the 5 highest module loadings
+                pc_loadings = pca.components_[i, pc_loadings_index]
+                pc_to_plot = np.array(df_pca[f'PC{i+1}']).reshape(-1, 1)
+                pc_to_plot = mm_scaler.fit_transform(pc_to_plot)
+                axs[2+i].plot(pc_to_plot, c = 'g', label = f'PC{i+1}')
+                ma = np.array(df_pca[f'PC{i+1}'].rolling(window=30).mean()).reshape(-1, 1)
+                ma = mm_scaler.fit_transform(ma)
                 axs[2+i].plot(ma, c='b', label = 'moving average' )
+                title = ''
+                for pc in range(len(pc_loadings_index)):
+                    load = round(float(pc_loadings[pc]),3)
+                    title += f'PC_{pc_loadings_index[pc]}={load} '
+                    corresponding_ts = np.array(data_copy[f'True_{pc_loadings_index[pc]}']).reshape(-1, 1)
+                    corresponding_ts = mm_scaler.fit_transform(corresponding_ts)
+                    axs[2+i].plot(corresponding_ts, alpha = 0.5, linewidth=0.5)
+                axs[2+i].set_title(title, fontsize = 20)
         
-        fig.legend(prop={"size": 20})
+        #fig.legend(prop={"size": 12})
         plt.show()
 
     def plotly_global_predictions(self, type="test"):
